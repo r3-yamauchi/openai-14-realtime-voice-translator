@@ -21,12 +21,12 @@ import { useRealtimeSession } from "./hooks/useRealtimeSession";
 import { createModerationGuardrail } from "@/app/agentConfigs/guardrails";
 
 // エージェント設定
-import { createSimpleChatAgent, SpeechSpeedLevel } from "@/app/agentConfigs/simpleChat";
+import { createSimpleChatAgent, SpeechSpeedLevel, VoiceId, voiceOptions, DEFAULT_VOICE_ID } from "@/app/agentConfigs/simpleChat";
 
 // SDK で定義されたシナリオの接続ロジックで使用されるマップ。
-const getSdkScenarioMap = (speechSpeed: SpeechSpeedLevel): Record<string, RealtimeAgent[]> => {
+const getSdkScenarioMap = (speechSpeed: SpeechSpeedLevel, voiceId: VoiceId): Record<string, RealtimeAgent[]> => {
   return {
-    simpleChat: [createSimpleChatAgent(speechSpeed)],
+    simpleChat: [createSimpleChatAgent(speechSpeed, voiceId)],
   };
 };
 
@@ -129,11 +129,12 @@ function App() {
 
   const [isTranscriptVisible, setIsTranscriptVisible] = useState(true);
   const [speechSpeed, setSpeechSpeed] = useState<SpeechSpeedLevel>('normal');
+  const [voiceId, setVoiceId] = useState<VoiceId>(DEFAULT_VOICE_ID);
 
   useEffect(() => {
     setSelectedAgentName('simpleChat');
-    setSelectedAgentConfigSet([createSimpleChatAgent(speechSpeed)]);
-  }, [speechSpeed]);
+    setSelectedAgentConfigSet([createSimpleChatAgent(speechSpeed, voiceId)]);
+  }, [speechSpeed, voiceId]);
 
   useEffect(() => {
     if (selectedAgentName && sessionStatus === "DISCONNECTED") {
@@ -152,10 +153,16 @@ function App() {
       );
       addTranscriptBreadcrumb(`Agent: ${selectedAgentName}`, currentAgent);
       updateSession(!handoffTriggeredRef.current);
+      
+      // 初期挨拶を中断して翻訳専用モードにする
+      setTimeout(() => {
+        interrupt();
+      }, 100); // 接続直後の短い遅延でinterruptを実行
+      
       // 処理後にフラグをリセットし、後続の副作用が正常に動作するようにする
       handoffTriggeredRef.current = false;
     }
-  }, [selectedAgentConfigSet, selectedAgentName, sessionStatus]);
+  }, [selectedAgentConfigSet, selectedAgentName, sessionStatus, interrupt]);
 
   useEffect(() => {
     if (sessionStatus === "CONNECTED") {
@@ -214,7 +221,7 @@ function App() {
   };
 
   const connectToRealtime = async () => {
-    const sdkScenarioMap = getSdkScenarioMap(speechSpeed);
+    const sdkScenarioMap = getSdkScenarioMap(speechSpeed, voiceId);
     
     if (sdkScenarioMap['simpleChat']) {
       if (sessionStatus !== "DISCONNECTED") return;
@@ -363,6 +370,19 @@ function App() {
     }
   };
 
+  const handleVoiceIdChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newVoiceId = e.target.value as VoiceId;
+    setVoiceId(newVoiceId);
+    // 接続中の場合は再接続が必要（音声は接続後変更不可のため）
+    if (sessionStatus === "CONNECTED") {
+      disconnectFromRealtime();
+      // 少し待ってから再接続
+      setTimeout(() => {
+        connectToRealtime();
+      }, 500);
+    }
+  };
+
   useEffect(() => {
     const storedPushToTalkUI = localStorage.getItem("pushToTalkUI");
     if (storedPushToTalkUI) {
@@ -457,6 +477,15 @@ function App() {
     } else {
       setSpeechSpeed('normal');
     }
+
+    // 音声IDの設定をローカルストレージから読み込み
+    const storedVoiceId = localStorage.getItem('voiceId');
+    const validVoiceIds = voiceOptions.map(v => v.id);
+    if (storedVoiceId && validVoiceIds.includes(storedVoiceId as VoiceId)) {
+      setVoiceId(storedVoiceId as VoiceId);
+    } else {
+      setVoiceId(DEFAULT_VOICE_ID);
+    }
   }, []);
 
   useEffect(() => {
@@ -466,6 +495,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('speechSpeed', speechSpeed);
   }, [speechSpeed]);
+
+  useEffect(() => {
+    localStorage.setItem('voiceId', voiceId);
+  }, [voiceId]);
 
   return (
     <div className="text-base flex flex-col h-screen bg-gray-100 text-gray-800 relative">
@@ -484,14 +517,14 @@ function App() {
             />
           </div>
           <div>
-            Realtime API <span className="text-gray-500">Agents</span>
+            日本語→英語 <span className="text-gray-500">音声翻訳</span>
           </div>
         </div>
         <div className="flex items-center">
           <label className="flex items-center text-base gap-1 mr-2 font-medium">
             音声速度
           </label>
-          <div className="relative inline-block">
+          <div className="relative inline-block mr-4">
             <select
               value={speechSpeed}
               onChange={handleSpeechSpeedChange}
@@ -503,6 +536,32 @@ function App() {
               <option value="normal">普通</option>
               <option value="fast">速い</option>
               <option value="very_fast">とても速い</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-600">
+              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 10.44l3.71-3.21a.75.75 0 111.04 1.08l-4.25 3.65a.75.75 0 01-1.04 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+          </div>
+          <label className="flex items-center text-base gap-1 mr-2 font-medium">
+            音声タイプ
+          </label>
+          <div className="relative inline-block">
+            <select
+              value={voiceId}
+              onChange={handleVoiceIdChange}
+              disabled={sessionStatus === "CONNECTED"}
+              className="appearance-none border border-gray-300 rounded-lg text-base px-2 py-1 pr-8 cursor-pointer font-normal focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              {voiceOptions.map(voice => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.name} - {voice.description}
+                </option>
+              ))}
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-600">
               <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

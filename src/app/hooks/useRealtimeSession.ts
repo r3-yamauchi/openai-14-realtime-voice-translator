@@ -10,17 +10,19 @@ import { useEvent } from '../contexts/EventContext';
 import { useHandleSessionHistory } from './useHandleSessionHistory';
 import { SessionStatus } from '../types';
 
+// リアルタイムセッションのコールバック関数定義
 export interface RealtimeSessionCallbacks {
-  onConnectionChange?: (status: SessionStatus) => void;
-  onAgentHandoff?: (agentName: string) => void;
+  onConnectionChange?: (status: SessionStatus) => void; // 接続状態変更時のコールバック
+  onAgentHandoff?: (agentName: string) => void; // エージェント切り替え時のコールバック
 }
 
+// セッション接続時のオプション設定
 export interface ConnectOptions {
-  getEphemeralKey: () => Promise<string>;
-  initialAgents: RealtimeAgent[];
-  audioElement?: HTMLAudioElement;
-  extraContext?: Record<string, any>;
-  outputGuardrails?: any[];
+  getEphemeralKey: () => Promise<string>; // 一時的なAPIキーを取得する関数
+  initialAgents: RealtimeAgent[]; // 初期エージェント配列
+  audioElement?: HTMLAudioElement; // 音声出力用のHTML要素
+  extraContext?: Record<string, any>; // 追加のコンテキスト情報
+  outputGuardrails?: any[]; // 出力時のガードレール設定
 }
 
 export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
@@ -66,6 +68,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
     }
   }
 
+  // URLクエリパラメータからコーデックを取得（デフォルト: opus）
   const codecParamRef = useRef<string>(
     (typeof window !== 'undefined'
       ? (new URLSearchParams(window.location.search).get('codec') ?? 'opus')
@@ -73,12 +76,13 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       .toLowerCase(),
   );
 
-  // 現在のコーデックパラメータを渡すためのラッパー
+  // 現在のコーデックパラメータを渡すためのラッパー関数
   const applyCodec = useCallback(
     (pc: RTCPeerConnection) => applyCodecPreferences(pc, codecParamRef.current),
     [],
   );
 
+  // エージェント切り替え（ハンドオフ）処理
   const handleAgentHandoff = (item: any) => {
     const history = item.context.history;
     const lastMessage = history[history.length - 1];
@@ -96,7 +100,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
         });
       });
 
-      // 履歴イベント
+      // 履歴イベントリスナーの登録
       sessionRef.current.on("agent_handoff", handleAgentHandoff);
       sessionRef.current.on("agent_tool_start", historyHandlers.handleAgentToolStart);
       sessionRef.current.on("agent_tool_end", historyHandlers.handleAgentToolEnd);
@@ -104,7 +108,7 @@ export function useRealtimeSession(callbacks: RealtimeSessionCallbacks = {}) {
       sessionRef.current.on("history_added", historyHandlers.handleHistoryAdded);
       sessionRef.current.on("guardrail_tripped", historyHandlers.handleGuardrailTripped);
 
-      // 追加のトランスポートイベント
+      // 追加のトランスポートイベントリスナー
       sessionRef.current.on("transport_event", handleTransportEvent);
     }
   }, [sessionRef.current]);

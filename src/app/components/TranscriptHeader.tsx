@@ -23,18 +23,18 @@ export function TranscriptHeader({ transcriptRef, onDownloadRecording }: Transcr
       setJustCopied(true);
       setTimeout(() => setJustCopied(false), 1500);
     } catch (error) {
-      console.error("トランスクリプトのコピーに失敗しました:", error);
+      console.error("翻訳履歴のコピーに失敗しました:", error);
     }
   };
 
   return (
     <div className="flex items-center justify-between px-6 py-3 sticky top-0 z-10 text-base border-b bg-white rounded-t-xl">
-      <span className="font-semibold">トランスクリプト</span>
+      <span className="font-semibold">翻訳履歴</span>
       <div className="flex gap-x-2">
         <button
           onClick={handleCopyTranscript}
           className="w-24 text-sm px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-x-1 transition-colors"
-          title="トランスクリプトをクリップボードにコピー"
+          title="翻訳履歴をクリップボードにコピー"
         >
           <ClipboardCopyIcon />
           {justCopied ? "コピーしました！" : "コピー"}
